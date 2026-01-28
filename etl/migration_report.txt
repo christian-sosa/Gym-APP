@@ -1,0 +1,47 @@
+======================================================================
+REPORTE DE MIGRACION - BloomFitness
+Fecha: 2026-01-24
+======================================================================
+
+Registros en origen (gym_to_migrate.db): 284
+Registros en destino (gym_access.db): 284
+
+----------------------------------------------------------------------
+USUARIOS CON ADVERTENCIAS:
+----------------------------------------------------------------------
+
+No hay usuarios con apellido problematico.
+
+Usuarios con plan vencido (0):
+  Ninguno
+
+Tarjetas RFID migradas: 0 de 0
+Registros de acceso migrados: 0 de 0
+  (La tabla origen estaba vacia)
+
+----------------------------------------------------------------------
+MAPEO DE MEMBRESIAS:
+----------------------------------------------------------------------
+  Tipo original   ->  Tipo nuevo
+  'full' (id=1)   ->  'mensual'
+  'std'  (id=2)   ->  'mensual'
+
+  NOTA: El tipo 'std' (3 dias/semana) no tiene equivalente
+  en el nuevo sistema y se migro como 'mensual'.
+
+----------------------------------------------------------------------
+CAMPOS/DATOS NO MIGRADOS:
+----------------------------------------------------------------------
+  - uso_semanal_std: Control de dias usados por semana (no aplica)
+  - Limite de 3 dias/semana para plan 'std' (no soportado)
+  - Metodo de pago: Se asigno 'efectivo' por defecto a todos
+
+======================================================================
+RESUMEN FINAL:
+======================================================================
+  Total usuarios migrados: 284
+  Usuarios con plan vigente: 284
+  Usuarios con plan vencido: 0
+  Usuarios con tarjeta RFID: 0
+
+  [OK] MIGRACION COMPLETA - Todos los usuarios fueron migrados

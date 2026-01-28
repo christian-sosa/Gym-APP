@@ -1,0 +1,6 @@
+id,nombre,apellido,nombre_completo,email,celular,observaciones,plan,fecha_inicio_plan,fecha_fin_plan,rfid_uid,activo,created_at,updated_at
+3,karen,pinoila,karen pinoila,,,,MENSUAL,2026-01-24,2026-02-24,,Sí,2026-01-24 10:53:31.005500,2026-01-24 10:53:31.005500
+1,chris,sosa,chris sosa,,,,MENSUAL,2026-01-24,2026-02-24,,No,2026-01-24 10:52:42.492680,2026-01-24 10:52:42.492680
+2,chris,sosa,chris sosa,,,,MENSUAL,2026-01-24,2026-02-24,,Sí,2026-01-24 10:53:00.916210,2026-01-24 10:53:00.916210
+4,chris,sosa,chris sosa,,1130115309,,MENSUAL,2026-01-24,2026-02-24,,Sí,2026-01-24 10:58:05.613008,2026-01-24 10:58:05.613008
+5,chris,sosa,chris sosa,,1130115309,,MENSUAL,2026-01-24,2026-02-24,,Sí,2026-01-24 10:58:14.898795,2026-01-24 10:58:14.898795

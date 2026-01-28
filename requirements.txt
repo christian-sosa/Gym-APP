@@ -1,0 +1,17 @@
+# BloomFitness - Sistema de Control de Acceso para Gimnasio
+# Python 3.11+
+
+# UI Framework
+PySide6>=6.6.0
+
+# Base de datos
+SQLAlchemy>=2.0.0
+
+# Utilidades de fechas
+python-dateutil>=2.8.0
+
+# Comunicación serial con Arduino
+pyserial>=3.5
+
+# Empaquetado como ejecutable
+pyinstaller>=6.0.0
