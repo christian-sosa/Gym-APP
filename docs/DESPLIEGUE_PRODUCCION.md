@@ -60,7 +60,7 @@ La base nueva debe **existir y tener tablas** antes de migrar. La aplicación la
    - Total de usuarios en origen
    - Migrados OK / con advertencias / fallidos
    - Si la base destino ya tenía usuarios, te preguntará si quieres agregar más (s/n).
-3. Si hay errores, corrígelos y vuelve a ejecutar si hace falta (ten en cuenta si te preguntó “agregar más”).
+3. Si hay errores, corrígelos y vuelve a ejecutar si hace falta (ten en cuenta si te preguntó "agregar más").
 4. Dependencia extra para el script de migración (por si no la tienes):
    ```bash
    pip install python-dateutil
@@ -68,7 +68,7 @@ La base nueva debe **existir y tener tablas** antes de migrar. La aplicación la
 
 ### Paso 2.4 – Verificar datos migrados
 
-- Vuelve a abrir la app y comprueba en “Usuarios” que aparezcan los datos.  
+- Vuelve a abrir la app y comprueba en "Usuarios" que aparezcan los datos.  
 - O abre `data\gym_access.db` con DBeaver/DB Browser y revisa las tablas `users` y `access_logs`.
 
 ---
@@ -105,18 +105,22 @@ Lleva solo estos elementos al equipo del gimnasio:
 Estructura en el equipo de producción:
 
 ```
-C:\BloomFitness\          (o la ruta que elijas)
+bloom\                       (o la ruta que elijas)
 ├── BloomFitness.exe
+├── logo\
+│   └── logo.png             (opcional)
 └── data\
-    └── gym_access.db
+    ├── gym_access.db
+    └── 2026-03-08\           (backups diarios, se crean al usar el botón)
+        └── gym_access.db
 ```
 
 Pasos en el equipo de producción:
 
-1. Crear la carpeta (ej. `C:\BloomFitness`).  
+1. Crear la carpeta (ej. `C:\bloom`).  
 2. Copiar ahí `BloomFitness.exe` y la carpeta `data` (con `gym_access.db` dentro).  
 3. Ejecutar `BloomFitness.exe`.  
-4. (Opcional) Conectar el Arduino y, desde la app, en “Tarjetas RFID” elegir el puerto COM correcto.
+4. (Opcional) Conectar el Arduino y, desde la app, en "Tarjetas RFID" elegir el puerto COM correcto.
 
 No copies la base antigua `gym_to_migrate.db` a producción; no la usa la aplicación.
 
@@ -146,16 +150,24 @@ Para uso normal en producción suele ser más simple la **Opción A**.
 
 - **Puerto del Arduino**  
   Por defecto la app usa `COM3`. Si el Arduino está en otro puerto:
-  - Abre la aplicación → “Tarjetas RFID” → selecciona el puerto correcto en la interfaz.  
+  - Abre la aplicación -> "Tarjetas RFID" -> selecciona el puerto correcto en la interfaz.  
   - No hace falta tocar código ni config si eliges el puerto desde la app.
 
 - **Modo debug (sin Arduino)**  
   Para probar sin hardware:
-  - En la app: “Tarjetas RFID” → activar “Modo Debug: ON”.  
+  - En la app: "Tarjetas RFID" -> activar "Modo Debug: ON".  
   - O antes de abrir la app: `set BLOOM_DEBUG=1` y luego ejecutar el .exe (si quieres usarlo desde un .bat).
 
 - **Respaldo de la base de datos**  
-  Recomendación: copiar periódicamente la carpeta `data` (o al menos `data\gym_access.db`) a un pendrive o red. Es la única base que usa la aplicación en producción.
+  La aplicación incluye un botón **"Backup DB"** en la barra lateral:
+  - Un clic crea `data\yyyy-mm-dd\gym_access.db` con la fecha del día.
+  - Si ya existe backup del día, se sobrescribe.
+  - Se recomienda también copiar periódicamente la carpeta `data` completa a un pendrive o red como respaldo adicional.
+
+- **Restaurar un backup**  
+  1. Cerrar BloomFitness.
+  2. Copiar el archivo de respaldo deseado (ej. `data\2026-03-01\gym_access.db`) a `data\gym_access.db`, reemplazando el actual.
+  3. Abrir BloomFitness.
 
 ---
 
@@ -168,7 +180,8 @@ Para uso normal en producción suele ser más simple la **Opción A**.
 - [ ] Ejecutado `build.bat` y comprobado que existe `dist\BloomFitness.exe`.  
 - [ ] Copiados a producción: `BloomFitness.exe` + carpeta `data` con `gym_access.db`.  
 - [ ] En producción: probado que la app abre y se ven los usuarios.  
-- [ ] (Opcional) Probado Arduino y selección de puerto COM en “Tarjetas RFID”.
+- [ ] Probado el botón "Backup DB" y verificado que se crea `data\yyyy-mm-dd\gym_access.db`.
+- [ ] (Opcional) Probado Arduino y selección de puerto COM en "Tarjetas RFID".
 
 ---
 
@@ -176,13 +189,15 @@ Para uso normal en producción suele ser más simple la **Opción A**.
 
 ```
 Base antigua (gym)     Migración (en tu PC)     Base nueva (BloomFitness)
-gym_to_migrate.db  →  etl/migrate_from_old_db  →  data/gym_access.db
-                              ↓
+gym_to_migrate.db  ->  etl/migrate_from_old_db  ->  data/gym_access.db
+                              |
                     Ejecutar app 1 vez antes
                     para crear tablas en data/gym_access.db
 ```
 
 En producción solo existe y se usa **`data/gym_access.db`**. El archivo `gym_to_migrate.db` es solo para la migración en desarrollo.
+
+Los backups diarios se guardan en **`data/yyyy-mm-dd/gym_access.db`** mediante el botón de la app.
 
 ---
 
@@ -190,10 +205,14 @@ En producción solo existe y se usa **`data/gym_access.db`**. El archivo `gym_to
 
 | Problema | Qué hacer |
 |----------|-----------|
-| “No se encontró la base de datos origen” | Comprueba que `gym_to_migrate.db` está en la raíz del proyecto (o ajusta `OLD_DB_PATH` en `etl/migrate_from_old_db.py`). |
-| “No se encontró la base de datos destino” | Ejecuta antes `python main.py` una vez y cierra la app para que se cree `data/gym_access.db`. |
+| "No se encontró la base de datos origen" | Comprueba que `gym_to_migrate.db` está en la raíz del proyecto (o ajusta `OLD_DB_PATH` en `etl/migrate_from_old_db.py`). |
+| "No se encontró la base de datos destino" | Ejecuta antes `python main.py` una vez y cierra la app para que se cree `data/gym_access.db`. |
 | Error con `relativedelta` al migrar | Instala: `pip install python-dateutil`. |
 | En producción la app no ve usuarios | Asegúrate de haber copiado la carpeta `data` con el `gym_access.db` **ya migrado**, no una base vacía recién creada. |
-| Arduino no detectado | En “Tarjetas RFID” elige el puerto COM correcto; revisa el Administrador de dispositivos. |
+| Arduino no detectado | En "Tarjetas RFID" elige el puerto COM correcto; revisa el Administrador de dispositivos. |
+| Error de backup "No se encontró la base de datos" | Verificar que `data/gym_access.db` existe en la misma carpeta que el .exe. |
+| Backup no se crea | Verificar permisos de escritura en la carpeta `data`. |
 
-Si quieres, en un siguiente paso se puede añadir una sección de “Primera vez en el gimnasio” (encender PC, conectar Arduino, abrir app, verificar un acceso de prueba).
+---
+
+*Documentación actualizada: Marzo 2026*

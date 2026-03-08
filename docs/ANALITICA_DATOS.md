@@ -4,6 +4,8 @@
 
 La base de datos es SQLite y se encuentra en: `data/gym_access.db`
 
+Los backups diarios se guardan en: `data/yyyy-mm-dd/gym_access.db`
+
 ---
 
 ## Tablas Disponibles
@@ -82,7 +84,6 @@ DB_PATH = Path("data/gym_access.db")
 conn = sqlite3.connect(DB_PATH)
 cursor = conn.cursor()
 
-# Ejecutar consultas
 cursor.execute("SELECT * FROM users")
 rows = cursor.fetchall()
 
@@ -96,7 +97,6 @@ import sqlite3
 
 conn = sqlite3.connect("data/gym_access.db")
 
-# Cargar tabla completa
 df_users = pd.read_sql_query("SELECT * FROM users", conn)
 df_access = pd.read_sql_query("SELECT * FROM access_logs", conn)
 
@@ -104,7 +104,7 @@ conn.close()
 ```
 
 ### DBeaver / SQL Client
-1. Nueva conexión → SQLite
+1. Nueva conexión -> SQLite
 2. Archivo: `C:\...\BloomFitness\data\gym_access.db`
 3. Conectar
 
@@ -317,6 +317,9 @@ Genera archivos en `etl/output/`:
 - `accesos_YYYYMMDD_HHMMSS.csv`
 - `estadisticas_YYYYMMDD_HHMMSS.csv`
 
+### Exportación desde la app
+En la vista "Registro Accesos", el botón "Exportar CSV" permite descargar directamente el historial filtrado sin necesidad de usar scripts.
+
 ### Exportación manual con Python
 ```python
 import pandas as pd
@@ -324,11 +327,9 @@ import sqlite3
 
 conn = sqlite3.connect("data/gym_access.db")
 
-# Exportar usuarios
 df_users = pd.read_sql_query("SELECT * FROM users", conn)
 df_users.to_csv("usuarios_export.csv", index=False, encoding='utf-8')
 
-# Exportar accesos con nombre de usuario
 query = """
 SELECT 
     a.timestamp,
@@ -393,19 +394,19 @@ conn.close()
 ## Integración con Herramientas de BI
 
 ### Power BI
-1. Obtener datos → SQLite
+1. Obtener datos -> SQLite
 2. Instalar conector SQLite (si no está)
 3. Seleccionar archivo `gym_access.db`
 4. Importar tablas `users` y `access_logs`
-5. Crear relación: `access_logs.user_id` → `users.id`
+5. Crear relación: `access_logs.user_id` -> `users.id`
 
 ### Metabase
-1. Agregar base de datos → SQLite
+1. Agregar base de datos -> SQLite
 2. Path: `/path/to/gym_access.db`
 3. Las tablas aparecerán automáticamente
 
 ### Google Sheets (via CSV)
-1. Ejecutar `python etl/extract_to_csv.py`
+1. Ejecutar `python etl/extract_to_csv.py` o exportar desde la app
 2. Subir CSVs a Google Drive
 3. Abrir con Google Sheets
 4. Usar IMPORTRANGE para conectar hojas
@@ -418,7 +419,6 @@ import matplotlib.pyplot as plt
 
 conn = sqlite3.connect("data/gym_access.db")
 
-# Análisis de accesos por hora
 df = pd.read_sql_query("""
     SELECT strftime('%H', timestamp) as hora, COUNT(*) as cantidad
     FROM access_logs WHERE resultado = 'PERMITIDO'
@@ -433,19 +433,24 @@ plt.show()
 
 ## Backup y Seguridad
 
-### Backup de la base de datos
+### Backup integrado en la app
+La aplicación incluye un botón **"Backup DB"** en la barra lateral que:
+- Crea una copia en `data/yyyy-mm-dd/gym_access.db`
+- Mantiene un archivo por día (sobrescribe si se ejecuta más de una vez)
+
+### Backup manual adicional
 ```bash
 # Windows (PowerShell)
 Copy-Item "data\gym_access.db" "backup\gym_access_$(Get-Date -Format 'yyyyMMdd').db"
 
-# O simplemente copiar el archivo gym_access.db
+# O simplemente copiar la carpeta data completa a un pendrive
 ```
 
 ### Restaurar backup
 1. Cerrar BloomFitness
-2. Reemplazar `data/gym_access.db` con el backup
+2. Copiar el archivo de respaldo deseado (ej. `data\2026-03-01\gym_access.db`) a `data\gym_access.db`, reemplazando el actual
 3. Abrir BloomFitness
 
 ---
 
-*Documentación técnica actualizada: Enero 2026*
+*Documentación técnica actualizada: Marzo 2026*

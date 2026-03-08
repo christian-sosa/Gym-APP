@@ -19,6 +19,7 @@ class Sidebar(QWidget):
     usuarios_clicked = Signal()
     tarjetas_clicked = Signal()
     accesos_clicked = Signal()
+    backup_clicked = Signal()
     salir_clicked = Signal()
     
     def __init__(self, parent=None):
@@ -35,17 +36,17 @@ class Sidebar(QWidget):
         
         # Contenedor del logo
         logo_container = QWidget()
-        logo_container.setStyleSheet("background-color: #0d0d0d;")
+        logo_container.setFixedSize(200, 200)
         logo_layout = QVBoxLayout(logo_container)
-        logo_layout.setContentsMargins(10, 20, 10, 20)
+        logo_layout.setContentsMargins(0, 0, 0, 0)
+        logo_layout.setSpacing(0)
         logo_layout.setAlignment(Qt.AlignCenter)
         
         # Logo - placeholder para imagen del gimnasio
         self.logo_label = QLabel()
         self.logo_label.setObjectName("logoLabel")
         self.logo_label.setAlignment(Qt.AlignCenter)
-        self.logo_label.setMinimumSize(150, 100)
-        self.logo_label.setMaximumSize(180, 120)
+        self.logo_label.setFixedSize(200, 200)
         
         # Intentar cargar logo - buscar en múltiples ubicaciones
         import sys
@@ -65,7 +66,7 @@ class Sidebar(QWidget):
                 pixmap = QPixmap(str(logo_path))
                 if not pixmap.isNull():
                     self.logo_label.setPixmap(
-                        pixmap.scaled(150, 100, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                        pixmap.scaled(200, 200, Qt.KeepAspectRatio, Qt.SmoothTransformation)
                     )
                     logo_loaded = True
                     break
@@ -92,17 +93,29 @@ class Sidebar(QWidget):
         # Botones de navegación
         self.btn_usuarios = self._create_nav_button("Usuarios", "👥")
         self.btn_usuarios.setChecked(True)
+        self.btn_usuarios.setToolTip("Ver y gestionar socios del gimnasio")
         self.btn_usuarios.clicked.connect(self._on_usuarios_clicked)
         layout.addWidget(self.btn_usuarios)
         
         self.btn_tarjetas = self._create_nav_button("Tarjetas RFID", "💳")
+        self.btn_tarjetas.setToolTip("Asignar y administrar tarjetas de acceso RFID")
         self.btn_tarjetas.clicked.connect(self._on_tarjetas_clicked)
         layout.addWidget(self.btn_tarjetas)
         
         self.btn_accesos = self._create_nav_button("Registro Accesos", "📋")
+        self.btn_accesos.setToolTip("Historial de entradas y salidas")
         self.btn_accesos.clicked.connect(self._on_accesos_clicked)
         layout.addWidget(self.btn_accesos)
-        
+
+        # Botón de backup
+        self.btn_backup = QPushButton("  💾  Backup DB")
+        self.btn_backup.setObjectName("backupButton")
+        self.btn_backup.setMinimumHeight(50)
+        self.btn_backup.setFont(QFont("Segoe UI", 11))
+        self.btn_backup.setToolTip("Crear respaldo diario de la base de datos")
+        self.btn_backup.clicked.connect(self.backup_clicked.emit)
+        layout.addWidget(self.btn_backup)
+
         # Espaciador flexible
         layout.addSpacerItem(QSpacerItem(20, 40, QSizePolicy.Minimum, QSizePolicy.Expanding))
         
@@ -158,3 +171,13 @@ class Sidebar(QWidget):
     def select_accesos(self):
         """Selecciona programáticamente la vista de accesos."""
         self._on_accesos_clicked()
+
+    def set_active_view(self, index: int):
+        """Actualiza la selección visual del sidebar según el índice de vista."""
+        self._uncheck_all()
+        if index == 0:
+            self.btn_usuarios.setChecked(True)
+        elif index == 1:
+            self.btn_tarjetas.setChecked(True)
+        elif index == 2:
+            self.btn_accesos.setChecked(True)

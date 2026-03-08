@@ -39,6 +39,19 @@ QMainWindow, QWidget {
     border: 2px solid #ffffff;
 }
 
+#sidebar QPushButton#backupButton {
+    background-color: #1976D2;
+    color: #ffffff;
+}
+
+#sidebar QPushButton#backupButton:hover {
+    background-color: #2196F3;
+}
+
+#sidebar QPushButton#backupButton:pressed {
+    background-color: #0D47A1;
+}
+
 #sidebar QPushButton#exitButton {
     background-color: #cc3333;
     color: #ffffff;
@@ -441,4 +454,45 @@ QProgressBar::chunk {
 
 #accessDenied {
     color: #ff4444;
+}
+
+/* Open door button */
+#openDoorButton {
+    background-color: #2196F3;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 30px;
+    font-size: 14px;
+    font-weight: bold;
+}
+
+#openDoorButton:hover {
+    background-color: #1976D2;
+}
+
+#openDoorButton:pressed {
+    background-color: #0D47A1;
+}
+
+#openDoorButton[doorOpen="true"] {
+    background-color: #4CAF50;
+}
+
+/* Debug button */
+#debugButton {
+    background-color: #444444;
+    color: #ffffff;
+}
+
+#debugButton[debugActive="true"] {
+    background-color: #00cc00;
+    color: #000000;
+}
+
+/* Empty state */
+#emptyStateLabel {
+    color: #555555;
+    font-size: 14px;
+    padding: 40px;
 }

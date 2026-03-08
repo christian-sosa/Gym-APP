@@ -7,7 +7,8 @@ from pathlib import Path
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView,
-    QGroupBox, QComboBox, QDateEdit, QLineEdit, QFileDialog, QMessageBox
+    QGroupBox, QComboBox, QDateEdit, QLineEdit, QFileDialog, QMessageBox,
+    QStackedWidget
 )
 from PySide6.QtCore import Qt, QDate, Slot
 from PySide6.QtGui import QFont, QColor
@@ -43,7 +44,8 @@ class AccessLogView(QWidget):
         layout.addWidget(title)
         
         # Panel de estadísticas
-        stats_group = QGroupBox("Estadísticas del Día")
+        self.stats_group = QGroupBox("Estadísticas del Período")
+        stats_group = self.stats_group
         stats_layout = QHBoxLayout(stats_group)
         
         self.lbl_total = QLabel("Total: 0")
@@ -121,25 +123,35 @@ class AccessLogView(QWidget):
         self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.table.setSortingEnabled(True)
-        
+
         header = self.table.horizontalHeader()
-        header.setSectionResizeMode(0, QHeaderView.ResizeToContents)  # Fecha
-        header.setSectionResizeMode(1, QHeaderView.Stretch)  # Usuario
-        header.setSectionResizeMode(2, QHeaderView.ResizeToContents)  # RFID
-        header.setSectionResizeMode(3, QHeaderView.ResizeToContents)  # Resultado
-        header.setSectionResizeMode(4, QHeaderView.ResizeToContents)  # Motivo
-        
-        layout.addWidget(self.table)
+        header.setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(1, QHeaderView.Stretch)
+        header.setSectionResizeMode(2, QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(3, QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(4, QHeaderView.ResizeToContents)
+
+        self.content_stack = QStackedWidget()
+        self.content_stack.addWidget(self.table)          # índice 0
+
+        self.lbl_empty = QLabel("No hay registros de acceso para el período y filtros seleccionados.")
+        self.lbl_empty.setObjectName("emptyStateLabel")
+        self.lbl_empty.setAlignment(Qt.AlignCenter)
+        self.content_stack.addWidget(self.lbl_empty)      # índice 1
+
+        layout.addWidget(self.content_stack)
         
         # Botones de acción
         buttons_layout = QHBoxLayout()
         buttons_layout.addStretch()
-        
+
         self.btn_refresh = QPushButton("Actualizar")
+        self.btn_refresh.setToolTip("Recargar registros con los filtros actuales (F5)")
         self.btn_refresh.clicked.connect(self.refresh)
         buttons_layout.addWidget(self.btn_refresh)
-        
+
         self.btn_export = QPushButton("Exportar CSV")
+        self.btn_export.setToolTip("Exportar los registros mostrados a un archivo CSV")
         self.btn_export.clicked.connect(self._on_export)
         buttons_layout.addWidget(self.btn_export)
         
@@ -189,7 +201,7 @@ class AccessLogView(QWidget):
     def _populate_table(self, logs: list):
         """Llena la tabla con los registros."""
         self.table.setRowCount(0)
-        
+
         for log in logs:
             row = self.table.rowCount()
             self.table.insertRow(row)
@@ -221,16 +233,26 @@ class AccessLogView(QWidget):
             # Motivo
             motivo_item = QTableWidgetItem(log.motivo.value)
             self.table.setItem(row, 4, motivo_item)
+
+        self.content_stack.setCurrentIndex(0 if self.table.rowCount() > 0 else 1)
     
     def _update_stats(self, logs: list):
-        """Actualiza las estadísticas."""
+        """Actualiza las estadísticas y el título del panel según el rango seleccionado."""
         total = len(logs)
         permitidos = sum(1 for log in logs if log.resultado == AccessResult.PERMITIDO)
         denegados = total - permitidos
-        
+
         self.lbl_total.setText(f"Total: {total}")
         self.lbl_permitidos.setText(f"Permitidos: {permitidos}")
         self.lbl_denegados.setText(f"Denegados: {denegados}")
+
+        today = QDate.currentDate()
+        if self.date_desde.date() == today and self.date_hasta.date() == today:
+            self.stats_group.setTitle("Estadísticas del Día")
+        else:
+            desde = self.date_desde.date().toString("dd/MM/yyyy")
+            hasta = self.date_hasta.date().toString("dd/MM/yyyy")
+            self.stats_group.setTitle(f"Estadísticas del Período ({desde} – {hasta})")
     
     @Slot()
     def _on_export(self):

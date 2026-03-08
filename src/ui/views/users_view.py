@@ -5,7 +5,8 @@ from typing import List, Optional
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QTableWidget, QTableWidgetItem,
-    QPushButton, QMessageBox, QHeaderView, QAbstractItemView, QLabel
+    QPushButton, QMessageBox, QHeaderView, QAbstractItemView, QLabel,
+    QStackedWidget
 )
 from PySide6.QtCore import Qt, Slot
 from PySide6.QtGui import QFont, QColor
@@ -76,8 +77,17 @@ class UsersView(QWidget):
         # Ocultar columna ID
         self.table.setColumnHidden(0, True)
         
-        layout.addWidget(self.table)
-        
+        # Stack para alternar entre tabla y estado vacío sin perder espacio
+        self.content_stack = QStackedWidget()
+        self.content_stack.addWidget(self.table)          # índice 0
+
+        self.lbl_empty = QLabel("No hay usuarios para mostrar.\nAgregue un usuario o limpie los filtros.")
+        self.lbl_empty.setObjectName("emptyStateLabel")
+        self.lbl_empty.setAlignment(Qt.AlignCenter)
+        self.content_stack.addWidget(self.lbl_empty)      # índice 1
+
+        layout.addWidget(self.content_stack)
+
         # Botones de acción
         buttons_layout = QHBoxLayout()
         
@@ -103,18 +113,24 @@ class UsersView(QWidget):
         buttons_layout.addStretch()
         
         self.btn_add = QPushButton("Agregar Usuario")
+        self.btn_add.setToolTip("Registrar un nuevo socio (Ctrl+N)")
         self.btn_add.clicked.connect(self._on_add_user)
         buttons_layout.addWidget(self.btn_add)
-        
+
         self.btn_edit = QPushButton("Editar Usuario")
+        self.btn_edit.setEnabled(False)
+        self.btn_edit.setToolTip("Seleccione un usuario para editar")
         self.btn_edit.clicked.connect(self._on_edit_user)
         buttons_layout.addWidget(self.btn_edit)
-        
+
         self.btn_delete = QPushButton("Eliminar Seleccionado")
         self.btn_delete.setObjectName("dangerButton")
+        self.btn_delete.setToolTip("Eliminar los usuarios seleccionados")
         self.btn_delete.clicked.connect(self._on_delete_users)
         buttons_layout.addWidget(self.btn_delete)
-        
+
+        self.table.itemSelectionChanged.connect(self._update_action_buttons)
+
         layout.addLayout(buttons_layout)
     
     def refresh(self):
@@ -146,6 +162,22 @@ class UsersView(QWidget):
         """Actualiza el contador de usuarios mostrados."""
         count = len(self._users)
         self.lbl_counter.setText(f"Total: {count}")
+
+    def _update_action_buttons(self):
+        """Actualiza el estado y texto de los botones según la selección."""
+        count = len(self._get_selected_user_ids())
+        if count > 1:
+            self.btn_delete.setText(f"Eliminar {count} Seleccionados")
+            self.btn_edit.setEnabled(False)
+            self.btn_edit.setToolTip("Seleccione solo un usuario para editar")
+        elif count == 1:
+            self.btn_delete.setText("Eliminar Seleccionado")
+            self.btn_edit.setEnabled(True)
+            self.btn_edit.setToolTip("Editar el usuario seleccionado")
+        else:
+            self.btn_delete.setText("Eliminar Seleccionado")
+            self.btn_edit.setEnabled(False)
+            self.btn_edit.setToolTip("Seleccione un usuario para editar")
     
     @Slot()
     def _on_toggle_inactive(self):
@@ -191,6 +223,10 @@ class UsersView(QWidget):
         Args:
             users: Lista de usuarios a mostrar
         """
+        # Deshabilitar sorting mientras se insertan filas para evitar que Qt
+        # reorganice las filas durante la inserción y mezcle datos entre usuarios
+        self.table.setSortingEnabled(False)
+
         self.table.setRowCount(0)
         
         for user in users:
@@ -246,6 +282,11 @@ class UsersView(QWidget):
             else:
                 estado_item.setForeground(QColor("#ff4444"))
             self.table.setItem(row, 8, estado_item)
+        
+        # Rehabilitar sorting después de insertar todas las filas
+        self.table.setSortingEnabled(True)
+
+        self.content_stack.setCurrentIndex(0 if self.table.rowCount() > 0 else 1)
     
     def _get_selected_user_ids(self) -> List[int]:
         """Obtiene los IDs de los usuarios seleccionados."""

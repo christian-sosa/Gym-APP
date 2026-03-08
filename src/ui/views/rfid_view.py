@@ -7,7 +7,8 @@ from datetime import datetime
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView,
-    QGroupBox, QComboBox, QTextEdit, QMessageBox
+    QGroupBox, QComboBox, QTextEdit, QMessageBox, QDialog, QDialogButtonBox,
+    QStackedWidget
 )
 from PySide6.QtCore import Qt, Slot
 from PySide6.QtGui import QFont, QColor
@@ -70,8 +71,10 @@ class RFIDView(QWidget):
         
         # Modo debug
         self.btn_debug = QPushButton("Modo Debug: OFF")
+        self.btn_debug.setObjectName("debugButton")
         self.btn_debug.setCheckable(True)
         self.btn_debug.setChecked(self.rfid_listener.is_debug_mode)
+        self.btn_debug.setToolTip("Simular lecturas RFID sin hardware conectado")
         self._update_debug_button()
         self.btn_debug.clicked.connect(self._on_toggle_debug)
         status_layout.addWidget(self.btn_debug)
@@ -92,21 +95,7 @@ class RFIDView(QWidget):
         self.btn_open_door.setObjectName("openDoorButton")
         self.btn_open_door.setFont(QFont("Segoe UI", 14, QFont.Bold))
         self.btn_open_door.setMinimumHeight(50)
-        self.btn_open_door.setStyleSheet("""
-            QPushButton {
-                background-color: #2196F3;
-                color: white;
-                border: none;
-                border-radius: 8px;
-                padding: 10px 30px;
-            }
-            QPushButton:hover {
-                background-color: #1976D2;
-            }
-            QPushButton:pressed {
-                background-color: #0D47A1;
-            }
-        """)
+        self.btn_open_door.setToolTip("Abrir la puerta manualmente para un visitante sin tarjeta")
         self.btn_open_door.clicked.connect(self._on_open_door_manual)
         manual_layout.addWidget(self.btn_open_door)
         
@@ -164,8 +153,16 @@ class RFIDView(QWidget):
         header.setSectionResizeMode(2, QHeaderView.ResizeToContents)
         header.setSectionResizeMode(3, QHeaderView.ResizeToContents)
         
-        cards_layout.addWidget(self.table)
-        
+        self.cards_stack = QStackedWidget()
+        self.cards_stack.addWidget(self.table)             # índice 0
+
+        self.lbl_empty_cards = QLabel("No hay tarjetas RFID asignadas.\nAsigne una tarjeta a un usuario activo.")
+        self.lbl_empty_cards.setObjectName("emptyStateLabel")
+        self.lbl_empty_cards.setAlignment(Qt.AlignCenter)
+        self.cards_stack.addWidget(self.lbl_empty_cards)   # índice 1
+
+        cards_layout.addWidget(self.cards_stack)
+
         # Botones de tarjetas
         cards_buttons = QHBoxLayout()
         cards_buttons.addStretch()
@@ -200,12 +197,11 @@ class RFIDView(QWidget):
     
     def _update_debug_button(self):
         """Actualiza el estado visual del botón de debug."""
-        if self.rfid_listener.is_debug_mode:
-            self.btn_debug.setText("Modo Debug: ON")
-            self.btn_debug.setStyleSheet("background-color: #00cc00; color: #000;")
-        else:
-            self.btn_debug.setText("Modo Debug: OFF")
-            self.btn_debug.setStyleSheet("")
+        active = self.rfid_listener.is_debug_mode
+        self.btn_debug.setText("Modo Debug: ON" if active else "Modo Debug: OFF")
+        self.btn_debug.setProperty("debugActive", active)
+        self.btn_debug.style().unpolish(self.btn_debug)
+        self.btn_debug.style().polish(self.btn_debug)
     
     @Slot(bool)
     def _on_connection_status(self, connected: bool):
@@ -279,30 +275,24 @@ class RFIDView(QWidget):
         try:
             repo = UserRepository(db)
             users = repo.search(solo_activos=False)
-            
-            # Filtrar solo usuarios con tarjeta asignada
             users_with_rfid = [u for u in users if u.rfid_uid]
-            
+
             self.table.setRowCount(0)
-            
+
             for user in users_with_rfid:
                 row = self.table.rowCount()
                 self.table.insertRow(row)
-                
-                # Nombre completo
+
                 name_item = QTableWidgetItem(user.nombre_completo)
                 name_item.setData(Qt.UserRole, user.id)
                 self.table.setItem(row, 0, name_item)
-                
-                # RFID
+
                 rfid_item = QTableWidgetItem(user.rfid_uid)
                 self.table.setItem(row, 1, rfid_item)
-                
-                # Plan
+
                 plan_item = QTableWidgetItem(user.plan.display_name)
                 self.table.setItem(row, 2, plan_item)
-                
-                # Estado
+
                 if not user.activo:
                     estado = "Inactivo"
                     color = "#ff4444"
@@ -312,24 +302,25 @@ class RFIDView(QWidget):
                 else:
                     estado = "Activo"
                     color = "#00cc00"
-                
+
                 estado_item = QTableWidgetItem(estado)
                 estado_item.setForeground(QColor(color))
                 self.table.setItem(row, 3, estado_item)
-                
+
+            self.cards_stack.setCurrentIndex(0 if self.table.rowCount() > 0 else 1)
+
         finally:
             db.close()
     
     @Slot()
     def _on_assign_card(self):
-        """Abre el diálogo para asignar una tarjeta."""
-        # Obtener usuarios sin tarjeta
+        """Abre el diálogo para asignar una tarjeta, con selección explícita de usuario."""
         db = get_db()
         try:
             repo = UserRepository(db)
             users = repo.get_all()
             users_without_rfid = [u for u in users if not u.rfid_uid and u.activo]
-            
+
             if not users_without_rfid:
                 QMessageBox.information(
                     self,
@@ -338,24 +329,47 @@ class RFIDView(QWidget):
                     QMessageBox.Ok
                 )
                 return
-            
-            # Por simplicidad, usar el primer usuario sin tarjeta
-            # En una implementación más completa, se mostraría un selector
-            user = users_without_rfid[0]
-            
+
+            user = self._pick_user(users_without_rfid)
+            if user is None:
+                return
+
             dialog = RFIDAssignDialog(user, parent=self)
-            
-            # Conectar listener RFID al diálogo
             self.rfid_listener.uid_received.connect(dialog.on_uid_received)
-            
             dialog.rfid_assigned.connect(self.refresh)
             dialog.exec()
-            
-            # Desconectar
             self.rfid_listener.uid_received.disconnect(dialog.on_uid_received)
-            
+
         finally:
             db.close()
+
+    def _pick_user(self, users: list) -> "User | None":
+        """Muestra un diálogo para que el operador seleccione el usuario al que asignar la tarjeta."""
+        picker = QDialog(self)
+        picker.setWindowTitle("Seleccionar Usuario")
+        picker.setMinimumWidth(380)
+        picker_layout = QVBoxLayout(picker)
+        picker_layout.setSpacing(15)
+
+        lbl = QLabel("Seleccione el usuario al que desea asignar la tarjeta RFID:")
+        lbl.setWordWrap(True)
+        picker_layout.addWidget(lbl)
+
+        combo = QComboBox()
+        for u in users:
+            combo.addItem(f"{u.apellido}, {u.nombre}", u.id)
+        picker_layout.addWidget(combo)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        buttons.accepted.connect(picker.accept)
+        buttons.rejected.connect(picker.reject)
+        picker_layout.addWidget(buttons)
+
+        if picker.exec() != QDialog.Accepted:
+            return None
+
+        selected_id = combo.currentData()
+        return next((u for u in users if u.id == selected_id), None)
     
     @Slot()
     def _on_remove_card(self):
@@ -412,22 +426,14 @@ class RFIDView(QWidget):
             self.lbl_last_result.setText("Resultado: PUERTA ABIERTA")
             self.lbl_last_result.setStyleSheet("color: #2196F3; font-weight: bold;")
             
-            # Feedback temporal en el botón
-            original_text = self.btn_open_door.text()
+            # Feedback temporal en el botón (2 segundos)
             self.btn_open_door.setText("   PUERTA ABIERTA!   ")
-            self.btn_open_door.setStyleSheet("""
-                QPushButton {
-                    background-color: #4CAF50;
-                    color: white;
-                    border: none;
-                    border-radius: 8px;
-                    padding: 10px 30px;
-                }
-            """)
-            
-            # Restaurar después de 2 segundos
+            self.btn_open_door.setProperty("doorOpen", True)
+            self.btn_open_door.style().unpolish(self.btn_open_door)
+            self.btn_open_door.style().polish(self.btn_open_door)
+
             from PySide6.QtCore import QTimer
-            QTimer.singleShot(2000, lambda: self._reset_open_button(original_text))
+            QTimer.singleShot(2000, self._reset_open_button)
         else:
             QMessageBox.warning(
                 self,
@@ -436,21 +442,9 @@ class RFIDView(QWidget):
                 QMessageBox.Ok
             )
     
-    def _reset_open_button(self, original_text: str):
+    def _reset_open_button(self):
         """Restaura el botón de apertura a su estado original."""
-        self.btn_open_door.setText(original_text)
-        self.btn_open_door.setStyleSheet("""
-            QPushButton {
-                background-color: #2196F3;
-                color: white;
-                border: none;
-                border-radius: 8px;
-                padding: 10px 30px;
-            }
-            QPushButton:hover {
-                background-color: #1976D2;
-            }
-            QPushButton:pressed {
-                background-color: #0D47A1;
-            }
-        """)
+        self.btn_open_door.setText("   ABRIR PUERTA   ")
+        self.btn_open_door.setProperty("doorOpen", False)
+        self.btn_open_door.style().unpolish(self.btn_open_door)
+        self.btn_open_door.style().polish(self.btn_open_door)

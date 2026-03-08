@@ -11,6 +11,10 @@ from PySide6.QtCore import Qt, Slot
 from PySide6.QtGui import QCloseEvent
 
 from src.config import APP_NAME, APP_VERSION, WINDOW_MIN_WIDTH, WINDOW_MIN_HEIGHT
+
+VIEW_USUARIOS = 0
+VIEW_TARJETAS = 1
+VIEW_ACCESOS = 2
 from src.db.database import init_db, get_db, close_db
 from src.db.repository import UserRepository
 from src.ui.widgets.sidebar import Sidebar
@@ -19,6 +23,7 @@ from src.ui.views.rfid_view import RFIDView
 from src.ui.views.access_log_view import AccessLogView
 from src.services.rfid_listener import RFIDListener
 from src.services.access_control import AccessControlService
+from src.services.backup_service import create_daily_backup
 
 
 class MainWindow(QMainWindow):
@@ -99,9 +104,10 @@ class MainWindow(QMainWindow):
         
         # Sidebar
         self.sidebar = Sidebar()
-        self.sidebar.usuarios_clicked.connect(lambda: self.show_view(0))
-        self.sidebar.tarjetas_clicked.connect(lambda: self.show_view(1))
-        self.sidebar.accesos_clicked.connect(lambda: self.show_view(2))
+        self.sidebar.usuarios_clicked.connect(lambda: self.show_view(VIEW_USUARIOS))
+        self.sidebar.tarjetas_clicked.connect(lambda: self.show_view(VIEW_TARJETAS))
+        self.sidebar.accesos_clicked.connect(lambda: self.show_view(VIEW_ACCESOS))
+        self.sidebar.backup_clicked.connect(self._on_backup_clicked)
         self.sidebar.salir_clicked.connect(self.close)
         main_layout.addWidget(self.sidebar)
         
@@ -121,19 +127,19 @@ class MainWindow(QMainWindow):
         main_layout.addWidget(self.view_stack)
         
         # Mostrar vista inicial
-        self.show_view(0)
+        self.show_view(VIEW_USUARIOS)
     
     @Slot(int)
     def show_view(self, index: int):
         """
         Muestra una vista específica.
-        
+
         Args:
-            index: Índice de la vista (0=Usuarios, 1=RFID, 2=Accesos)
+            index: Índice de la vista (VIEW_USUARIOS, VIEW_TARJETAS, VIEW_ACCESOS)
         """
         self.view_stack.setCurrentIndex(index)
-        
-        # Refrescar la vista actual
+        self.sidebar.set_active_view(index)
+
         current_widget = self.view_stack.currentWidget()
         if hasattr(current_widget, 'refresh'):
             current_widget.refresh()
@@ -150,12 +156,21 @@ class MainWindow(QMainWindow):
         result = self.access_control.process_access(uid)
         
         # Actualizar vista de accesos si está visible
-        if self.view_stack.currentIndex() == 2:
+        if self.view_stack.currentIndex() == VIEW_ACCESOS:
             self.access_log_view.refresh()
         
         # Actualizar vista RFID
         self.rfid_view.on_uid_received(uid, result)
     
+    @Slot()
+    def _on_backup_clicked(self):
+        """Ejecuta el backup diario y muestra el resultado al usuario."""
+        result = create_daily_backup()
+        if result.ok:
+            QMessageBox.information(self, "Backup Exitoso", result.message, QMessageBox.Ok)
+        else:
+            QMessageBox.critical(self, "Error de Backup", result.message, QMessageBox.Ok)
+
     def closeEvent(self, event: QCloseEvent):
         """Maneja el evento de cierre de la ventana."""
         reply = QMessageBox.question(

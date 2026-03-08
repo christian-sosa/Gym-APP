@@ -4,12 +4,14 @@ Sistema de escritorio para gestión de usuarios, membresías y control de acceso
 
 ## Características
 
-- **Gestión de Usuarios**: Alta, baja, modificación y búsqueda de miembros
+- **Gestión de Usuarios**: Alta, baja, modificación y búsqueda de miembros con filtros avanzados
 - **Planes de Membresía**: Mensual, 3 meses y 6 meses con cálculo automático de vencimiento
-- **Tarjetas RFID**: Asignación y gestión de tarjetas para control de acceso
-- **Registro de Accesos**: Historial completo con exportación a CSV
+- **Tarjetas RFID**: Asignación (con selección explícita de usuario) y gestión de tarjetas
+- **Registro de Accesos**: Historial completo con estadísticas del período y exportación a CSV
 - **Comunicación Arduino**: Lectura de tarjetas RFID vía puerto serial
 - **Modo Debug**: Simulación de lecturas RFID sin hardware
+- **Backup Diario**: Respaldo de la base de datos con un clic (un backup por día en `data/yyyy-mm-dd/`)
+- **Tema Oscuro**: Interfaz con tema oscuro consolidado vía QSS
 
 ## Requisitos del Sistema
 
@@ -74,6 +76,16 @@ Por defecto, la aplicación busca el Arduino en `COM3`. Para cambiar el puerto:
 
 También puede seleccionar el puerto desde la interfaz en la sección "Tarjetas RFID".
 
+## Backup de la Base de Datos
+
+La aplicación incluye un botón de backup en la barra lateral (sidebar). Al presionarlo:
+
+- Se crea una copia de `data/gym_access.db` en `data/yyyy-mm-dd/gym_access.db`.
+- Solo se mantiene un archivo por día; si ya existe, se sobrescribe.
+- Se muestra un mensaje con la ruta del backup o el error encontrado.
+
+Para restaurar un backup, cierre la aplicación y reemplace `data/gym_access.db` con el archivo de respaldo deseado.
+
 ## Generar Ejecutable (.exe)
 
 ### Opción 1: Usar el script de build
@@ -90,45 +102,77 @@ pyinstaller BloomFitness.spec
 
 El ejecutable se generará en `dist/BloomFitness.exe`.
 
+### Estructura en producción (compilado)
+
+```
+bloom/
+├── BloomFitness.exe
+├── logo/
+│   └── logo.png
+└── data/
+    ├── gym_access.db
+    └── 2026-03-08/          (backups diarios)
+        └── gym_access.db
+```
+
 ## Estructura del Proyecto
 
 ```
 BloomFitness/
-├── main.py                 # Punto de entrada
-├── requirements.txt        # Dependencias Python
-├── BloomFitness.spec       # Configuración PyInstaller
-├── build.bat               # Script de build
-├── README.md               # Este archivo
+├── main.py                     # Punto de entrada
+├── requirements.txt            # Dependencias Python
+├── BloomFitness.spec           # Configuración PyInstaller
+├── build.bat                   # Script de build
+├── README.md                   # Este archivo
 │
 ├── src/
-│   ├── config.py           # Configuración global
+│   ├── config.py               # Configuración global (rutas, puertos, constantes)
 │   │
-│   ├── db/                 # Base de datos
-│   │   ├── models.py       # Modelos SQLAlchemy
-│   │   ├── database.py     # Conexión SQLite
-│   │   └── repository.py   # Operaciones CRUD
+│   ├── db/                     # Base de datos
+│   │   ├── models.py           # Modelos SQLAlchemy (User, AccessLog)
+│   │   ├── database.py         # Conexión y sesión SQLite
+│   │   └── repository.py       # Operaciones CRUD
 │   │
-│   ├── ui/                 # Interfaz gráfica
-│   │   ├── main_window.py  # Ventana principal
-│   │   ├── views/          # Vistas (usuarios, RFID, accesos)
-│   │   ├── dialogs/        # Diálogos modales
-│   │   ├── widgets/        # Componentes reutilizables
-│   │   └── styles/         # Tema oscuro QSS
+│   ├── ui/                     # Interfaz gráfica (PySide6 / Qt)
+│   │   ├── main_window.py      # Ventana principal y navegación
+│   │   ├── views/              # Vistas principales
+│   │   │   ├── users_view.py       # Gestión de usuarios
+│   │   │   ├── rfid_view.py        # Tarjetas RFID y control de acceso
+│   │   │   └── access_log_view.py  # Registro de accesos
+│   │   ├── dialogs/            # Diálogos modales
+│   │   │   ├── user_dialog.py       # Alta/edición de usuario
+│   │   │   └── rfid_assign_dialog.py # Asignación de tarjeta RFID
+│   │   ├── widgets/            # Componentes reutilizables
+│   │   │   ├── sidebar.py          # Barra lateral de navegación
+│   │   │   └── search_bar.py       # Barra de búsqueda con filtros
+│   │   └── styles/
+│   │       └── dark_theme.qss  # Tema oscuro centralizado
 │   │
-│   ├── services/           # Lógica de negocio
-│   │   ├── rfid_listener.py    # Comunicación serial
-│   │   ├── access_control.py   # Control de acceso
-│   │   └── plan_calculator.py  # Cálculo de planes
+│   ├── services/               # Lógica de negocio
+│   │   ├── rfid_listener.py    # Comunicación serial con Arduino
+│   │   ├── access_control.py   # Validación de acceso
+│   │   ├── plan_calculator.py  # Cálculo de fechas de planes
+│   │   └── backup_service.py   # Backup diario de la base de datos
 │   │
-│   └── utils/              # Utilidades
-│       ├── enums.py        # Enumeraciones
-│       ├── dates.py        # Manejo de fechas
-│       └── export.py       # Exportación CSV
+│   └── utils/                  # Utilidades
+│       ├── enums.py            # Enumeraciones (PlanType, AccessResult, etc.)
+│       ├── dates.py            # Formateo de fechas
+│       └── export.py           # Exportación a CSV
 │
-├── assets/                 # Recursos (logo, iconos)
+├── assets/                     # Recursos (logo, iconos)
 │
-└── data/                   # Base de datos SQLite
-    └── gym_access.db       # (generado automáticamente)
+├── data/                       # Base de datos SQLite (generado automáticamente)
+│   └── gym_access.db
+│
+├── docs/                       # Documentación adicional
+│   ├── FUNCIONALIDAD.md        # Qué hace y qué no hace el software
+│   ├── DESPLIEGUE_PRODUCCION.md # Guía de despliegue
+│   └── ANALITICA_DATOS.md      # Consultas SQL y conexión a BI
+│
+└── etl/                        # Scripts de extracción y migración
+    ├── README.md
+    ├── extract_to_csv.py       # Exporta datos a CSV
+    └── migrate_from_old_db.py  # Migración desde sistema anterior (Java)
 ```
 
 ## Código Arduino (Ejemplo)
@@ -149,12 +193,10 @@ void setup() {
 }
 
 void loop() {
-  // Verificar si hay una tarjeta presente
   if (!rfid.PICC_IsNewCardPresent() || !rfid.PICC_ReadCardSerial()) {
     return;
   }
 
-  // Construir UID como string hexadecimal
   String uid = "";
   for (byte i = 0; i < rfid.uid.size; i++) {
     if (rfid.uid.uidByte[i] < 0x10) {
@@ -164,10 +206,8 @@ void loop() {
   }
   uid.toUpperCase();
 
-  // Enviar UID por Serial
   Serial.println(uid);
 
-  // Evitar lecturas duplicadas
   delay(1000);
 
   rfid.PICC_HaltA();
@@ -195,8 +235,8 @@ La aplicación utiliza SQLite. La base de datos se crea automáticamente en `dat
 ### Tablas
 
 **users**
-- id, nombre, email, celular, observaciones
-- plan (mensual/x3/x6)
+- id, nombre, apellido, email, celular, observaciones
+- plan (mensual/x3/x6), metodo_pago
 - fecha_inicio_plan, fecha_fin_plan
 - rfid_uid, activo
 - created_at, updated_at
@@ -205,7 +245,7 @@ La aplicación utiliza SQLite. La base de datos se crea automáticamente en `dat
 - id, timestamp
 - rfid_uid, user_id
 - resultado (permitido/denegado)
-- motivo (ok/no_existe/vencido/inactivo)
+- motivo (ok/no_existe/vencido/inactivo/manual)
 
 ## Solución de Problemas
 
@@ -224,7 +264,7 @@ La aplicación utiliza SQLite. La base de datos se crea automáticamente en `dat
 ### La base de datos no se crea
 
 1. Verifique permisos de escritura en el directorio
-2. Compruebe que el directorio `data/` existe
+2. Compruebe que el directorio `data/` existe (se crea automáticamente)
 
 ## Licencia
 

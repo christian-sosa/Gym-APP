@@ -3,9 +3,9 @@ Widget de barra de búsqueda con múltiples filtros.
 """
 from PySide6.QtWidgets import (
     QWidget, QHBoxLayout, QVBoxLayout, QLineEdit, QComboBox,
-    QPushButton, QLabel, QDateEdit
+    QPushButton, QLabel
 )
-from PySide6.QtCore import Signal, Qt, QDate
+from PySide6.QtCore import Signal, Qt
 from PySide6.QtGui import QFont
 
 from src.utils.enums import PlanType
@@ -81,16 +81,7 @@ class SearchBar(QWidget):
         self.txt_observaciones.setMinimumWidth(120)
         self.txt_observaciones.returnPressed.connect(self._on_search)
         filters_layout.addWidget(self.txt_observaciones)
-        
-        # Fecha de pago
-        self.date_pago = QDateEdit()
-        self.date_pago.setCalendarPopup(True)
-        self.date_pago.setDate(QDate.currentDate())
-        self.date_pago.setDisplayFormat("yyyy-MM-dd")
-        self.date_pago.setSpecialValueText("Última Fecha de Pago")
-        self.date_pago.setMinimumDate(QDate(2000, 1, 1))
-        filters_layout.addWidget(self.date_pago)
-        
+
         # Botón buscar
         self.btn_buscar = QPushButton("Buscar")
         self.btn_buscar.setMinimumWidth(80)
@@ -119,7 +110,6 @@ class SearchBar(QWidget):
         self.txt_celular.clear()
         self.cmb_plan.setCurrentIndex(0)
         self.txt_observaciones.clear()
-        self.date_pago.setDate(QDate.currentDate())
         self.clear_triggered.emit()
     
     def get_filters(self) -> dict:
@@ -138,5 +128,4 @@ class SearchBar(QWidget):
             "celular": self.txt_celular.text().strip() or None,
             "plan": plan_data,
             "observaciones": self.txt_observaciones.text().strip() or None,
-            "fecha_fin_hasta": self.date_pago.date().toPython() if self.date_pago.date() != QDate.currentDate() else None
         }
