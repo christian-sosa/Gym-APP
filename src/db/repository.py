@@ -4,12 +4,13 @@ Repositorios para acceso a datos (patrón Repository).
 from datetime import date, datetime
 from typing import List, Optional
 
-from sqlalchemy import or_, and_
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from src.db.models import User, AccessLog
 from src.utils.enums import PlanType, AccessResult, AccessReason, PaymentMethod
 from src.utils.dates import calcular_fecha_fin
+from src.utils.rfid import normalize_rfid_uid
 
 
 class UserRepository:
@@ -31,7 +32,25 @@ class UserRepository:
     
     def get_by_rfid(self, rfid_uid: str) -> Optional[User]:
         """Obtiene un usuario por su UID de tarjeta RFID."""
-        return self.db.query(User).filter(User.rfid_uid == rfid_uid).first()
+        normalized = normalize_rfid_uid(rfid_uid)
+        if not normalized:
+            return self.db.query(User).filter(User.rfid_uid == rfid_uid).first()
+
+        compact = normalized.replace("-", "")
+        normalized_db = func.replace(
+            func.replace(
+                func.replace(func.upper(User.rfid_uid), "-", ""),
+                ":",
+                ""
+            ),
+            " ",
+            ""
+        )
+        return (
+            self.db.query(User)
+            .filter(normalized_db == compact)
+            .first()
+        )
     
     def get_by_email(self, email: str) -> Optional[User]:
         """Obtiene un usuario por su email."""
@@ -144,7 +163,7 @@ class UserRepository:
             plan=plan,
             fecha_inicio_plan=fecha_inicio_plan,
             fecha_fin_plan=fecha_fin_plan,
-            rfid_uid=rfid_uid,
+            rfid_uid=normalize_rfid_uid(rfid_uid) if rfid_uid else None,
             activo=activo,
             metodo_pago=metodo_pago
         )
@@ -202,7 +221,7 @@ class UserRepository:
         if observaciones is not None:
             user.observaciones = observaciones
         if rfid_uid is not None:
-            user.rfid_uid = rfid_uid if rfid_uid else None
+            user.rfid_uid = normalize_rfid_uid(rfid_uid) if rfid_uid else None
         if activo is not None:
             user.activo = activo
         if metodo_pago is not None:
@@ -251,11 +270,15 @@ class UserRepository:
             Usuario actualizado o None si el UID ya está asignado
         """
         # Verificar que no esté asignada a otro usuario
-        existing = self.get_by_rfid(rfid_uid)
+        normalized_uid = normalize_rfid_uid(rfid_uid)
+        if not normalized_uid:
+            return None
+
+        existing = self.get_by_rfid(normalized_uid)
         if existing and existing.id != user_id:
             return None
         
-        return self.update(user_id, rfid_uid=rfid_uid)
+        return self.update(user_id, rfid_uid=normalized_uid)
     
     def remove_rfid(self, user_id: int) -> Optional[User]:
         """Remueve la tarjeta RFID de un usuario."""

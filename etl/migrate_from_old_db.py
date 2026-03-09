@@ -159,29 +159,56 @@ def migrate_users(old_cursor: sqlite3.Cursor, new_conn: sqlite3.Connection) -> M
                 apellido = "Sin Apellido"
                 warnings_for_user.append(f"Nombre único '{nombre_completo}', apellido asignado como 'Sin Apellido'")
             
+            # Comprobar si ya existe un usuario equivalente para evitar duplicados
+            # Criterio: mismo email (si no es nulo) o mismo RFID (si no es nulo)
+            new_cursor.execute(
+                """
+                SELECT id FROM users
+                WHERE
+                    (email IS NOT NULL AND email = ?)
+                    OR
+                    (rfid_uid IS NOT NULL AND rfid_uid = ?)
+                """,
+                (email if email else None, rfid_uid),
+            )
+            existing_user = new_cursor.fetchone()
+
+            if existing_user:
+                # No insertamos de nuevo, solo registramos advertencia
+                warnings_for_user.append(
+                    "Usuario ya existente en la nueva DB (coincidencia por email o RFID), se omite para evitar duplicados"
+                )
+                result.migrated_with_warnings += 1
+                for w in warnings_for_user:
+                    result.warnings.append(f"Usuario ID {old_id} ({nombre_completo}): {w}")
+                continue
+
             # Insertar en nueva DB
-            new_cursor.execute("""
+            new_cursor.execute(
+                """
                 INSERT INTO users (
                     nombre, apellido, email, celular, observaciones,
                     plan, fecha_inicio_plan, fecha_fin_plan,
                     rfid_uid, activo, metodo_pago,
                     created_at, updated_at
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                nombre,
-                apellido,
-                email if email else None,
-                celular if celular else None,
-                observaciones if observaciones else None,
-                plan,
-                fecha_inicio.isoformat(),
-                fecha_fin.isoformat(),
-                rfid_uid,
-                activo,
-                DEFAULT_PAYMENT_METHOD,
-                datetime.now().isoformat(),
-                datetime.now().isoformat()
-            ))
+                """,
+                (
+                    nombre,
+                    apellido,
+                    email if email else None,
+                    celular if celular else None,
+                    observaciones if observaciones else None,
+                    plan,
+                    fecha_inicio.isoformat(),
+                    fecha_fin.isoformat(),
+                    rfid_uid,
+                    activo,
+                    DEFAULT_PAYMENT_METHOD,
+                    datetime.now().isoformat(),
+                    datetime.now().isoformat(),
+                ),
+            )
             
             if warnings_for_user:
                 result.migrated_with_warnings += 1
@@ -247,10 +274,14 @@ def main():
         
         if existing_count > 0:
             print(f"\n[ADVERTENCIA] La base de datos destino ya tiene {existing_count} usuarios.")
-            response = input("   Desea continuar y agregar mas? (s/n): ")
+            response = input("   Desea BORRAR todos los usuarios y volver a migrar desde cero? (s/n): ")
             if response.lower() != 's':
                 print("   Migracion cancelada.")
                 return
+            
+            print("   Borrando usuarios existentes de la base de datos destino...")
+            new_cursor.execute("DELETE FROM users")
+            new_conn.commit()
         
         # Migrar usuarios
         print("\n" + "-" * 40)

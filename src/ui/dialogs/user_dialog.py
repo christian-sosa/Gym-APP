@@ -17,6 +17,7 @@ from src.db.repository import UserRepository
 from src.db.models import User
 from src.utils.enums import PlanType, PaymentMethod
 from src.services.plan_calculator import PlanCalculator
+from src.utils.rfid import normalize_rfid_uid
 
 
 class UserDialog(QDialog):
@@ -292,11 +293,21 @@ class UserDialog(QDialog):
         Args:
             uid: UID de la tarjeta
         """
+        normalized_uid = normalize_rfid_uid(uid)
+        if not normalized_uid:
+            QMessageBox.warning(
+                self,
+                "UID Inválido",
+                "La tarjeta leída no tiene un formato RFID válido.",
+                QMessageBox.Ok
+            )
+            return
+
         # Verificar que no esté asignada a otro usuario
         db = get_db()
         try:
             repo = UserRepository(db)
-            existing = repo.get_by_rfid(uid)
+            existing = repo.get_by_rfid(normalized_uid)
             
             if existing and (not self.user or existing.id != self.user.id):
                 QMessageBox.warning(
@@ -307,8 +318,8 @@ class UserDialog(QDialog):
                 )
                 return
             
-            self.txt_rfid.setText(uid)
-            self.scanned_rfid = uid
+            self.txt_rfid.setText(normalized_uid)
+            self.scanned_rfid = normalized_uid
             
         finally:
             db.close()
@@ -346,7 +357,16 @@ class UserDialog(QDialog):
         plan = self.cmb_plan.currentData()
         fecha_inicio = self.date_inicio.date().toPython()
         activo = self.chk_activo.isChecked()
-        rfid_uid = self.txt_rfid.text().strip() or None
+        raw_rfid = self.txt_rfid.text().strip()
+        rfid_uid = normalize_rfid_uid(raw_rfid) if raw_rfid else None
+        if raw_rfid and not rfid_uid:
+            QMessageBox.warning(
+                self,
+                "UID Inválido",
+                "El UID RFID no tiene un formato válido.",
+                QMessageBox.Ok
+            )
+            return
         metodo_pago = self.cmb_metodo_pago.currentData()
         
         db = get_db()

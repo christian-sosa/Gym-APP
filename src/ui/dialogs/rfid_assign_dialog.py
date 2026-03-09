@@ -11,6 +11,7 @@ from PySide6.QtGui import QFont
 from src.db.database import get_db
 from src.db.repository import UserRepository
 from src.db.models import User
+from src.utils.rfid import normalize_rfid_uid
 
 
 class RFIDAssignDialog(QDialog):
@@ -105,21 +106,25 @@ class RFIDAssignDialog(QDialog):
         Args:
             uid: UID de la tarjeta leída
         """
+        normalized_uid = normalize_rfid_uid(uid)
+        if not normalized_uid:
+            return
+
         # Verificar si ya está asignada a otro usuario
         db = get_db()
         try:
             repo = UserRepository(db)
-            existing = repo.get_by_rfid(uid)
+            existing = repo.get_by_rfid(normalized_uid)
             
             if existing and existing.id != self.user.id:
-                self.lbl_uid.setText(uid)
+                self.lbl_uid.setText(normalized_uid)
                 self.lbl_uid.setStyleSheet("color: #ff4444;")
                 self.lbl_status.setText(f"Esta tarjeta ya está asignada a: {existing.nombre_completo}")
                 self.lbl_status.setStyleSheet("color: #ff4444;")
                 self.btn_assign.setEnabled(False)
             else:
-                self.captured_uid = uid
-                self.lbl_uid.setText(uid)
+                self.captured_uid = normalized_uid
+                self.lbl_uid.setText(normalized_uid)
                 self.lbl_uid.setStyleSheet("color: #00cc00;")
                 self.lbl_status.setText("Tarjeta lista para asignar")
                 self.lbl_status.setStyleSheet("color: #00cc00;")

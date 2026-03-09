@@ -9,6 +9,7 @@ from src.db.database import get_db
 from src.db.repository import UserRepository, AccessLogRepository
 from src.db.models import User
 from src.utils.enums import AccessResult, AccessReason
+from src.utils.rfid import normalize_rfid_uid
 
 
 @dataclass
@@ -37,16 +38,31 @@ class AccessControlService:
         try:
             user_repo = UserRepository(db)
             access_repo = AccessLogRepository(db)
+            normalized_uid = normalize_rfid_uid(rfid_uid)
+
+            if not normalized_uid:
+                result = AccessCheckResult(
+                    resultado=AccessResult.DENEGADO,
+                    motivo=AccessReason.NO_EXISTE,
+                    message=f"UID invalido recibido: {rfid_uid}"
+                )
+                access_repo.create(
+                    rfid_uid=str(rfid_uid),
+                    resultado=result.resultado,
+                    motivo=result.motivo,
+                    user_id=None
+                )
+                return result
             
             # Buscar usuario por RFID
-            user = user_repo.get_by_rfid(rfid_uid)
+            user = user_repo.get_by_rfid(normalized_uid)
             
             # Determinar resultado
             if user is None:
                 result = AccessCheckResult(
                     resultado=AccessResult.DENEGADO,
                     motivo=AccessReason.NO_EXISTE,
-                    message=f"Tarjeta no registrada: {rfid_uid}"
+                    message=f"Tarjeta no registrada: {normalized_uid}"
                 )
             elif not user.activo:
                 result = AccessCheckResult(
@@ -72,7 +88,7 @@ class AccessControlService:
             
             # Registrar en log
             access_repo.create(
-                rfid_uid=rfid_uid,
+                rfid_uid=normalized_uid,
                 resultado=result.resultado,
                 motivo=result.motivo,
                 user_id=user.id if user else None
@@ -97,7 +113,15 @@ class AccessControlService:
         db = get_db()
         try:
             user_repo = UserRepository(db)
-            user = user_repo.get_by_rfid(rfid_uid)
+            normalized_uid = normalize_rfid_uid(rfid_uid)
+            if not normalized_uid:
+                return AccessCheckResult(
+                    resultado=AccessResult.DENEGADO,
+                    motivo=AccessReason.NO_EXISTE,
+                    message="UID invalido"
+                )
+
+            user = user_repo.get_by_rfid(normalized_uid)
             
             if user is None:
                 return AccessCheckResult(

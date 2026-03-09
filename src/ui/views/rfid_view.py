@@ -66,7 +66,7 @@ class RFIDView(QWidget):
         
         self.btn_refresh_ports = QPushButton("Actualizar")
         self.btn_refresh_ports.setObjectName("secondaryButton")
-        self.btn_refresh_ports.clicked.connect(self._refresh_ports)
+        self.btn_refresh_ports.clicked.connect(self._on_refresh_ports)
         status_layout.addWidget(self.btn_refresh_ports)
         
         # Modo debug
@@ -183,6 +183,7 @@ class RFIDView(QWidget):
         """Conecta las señales del listener RFID."""
         self.rfid_listener.connection_status.connect(self._on_connection_status)
         self.rfid_listener.error_occurred.connect(self._on_error)
+        self.cmb_port.currentIndexChanged.connect(self._on_port_changed)
     
     def _refresh_ports(self):
         """Actualiza la lista de puertos disponibles."""
@@ -194,6 +195,22 @@ class RFIDView(QWidget):
                 self.cmb_port.addItem(f"{port} - {desc}", port)
         else:
             self.cmb_port.addItem("No hay puertos disponibles", None)
+        
+        # Intentar seleccionar el puerto actualmente configurado en el listener
+        current_port = getattr(self.rfid_listener, "port", None)
+        if current_port:
+            index = self.cmb_port.findData(current_port)
+            if index >= 0:
+                self.cmb_port.setCurrentIndex(index)
+
+    @Slot()
+    def _on_refresh_ports(self):
+        """Actualiza puertos y fuerza un intento de reconexión."""
+        self._refresh_ports()
+        port = self.cmb_port.currentData()
+        if port:
+            self.rfid_listener.set_port(port)
+            self._log(f"Reintentando conexión en {port}")
     
     def _update_debug_button(self):
         """Actualiza el estado visual del botón de debug."""
@@ -202,6 +219,22 @@ class RFIDView(QWidget):
         self.btn_debug.setProperty("debugActive", active)
         self.btn_debug.style().unpolish(self.btn_debug)
         self.btn_debug.style().polish(self.btn_debug)
+    
+    @Slot(int)
+    def _on_port_changed(self, index: int):
+        """
+        Maneja el cambio de puerto seleccionado en el combo.
+        
+        Cambia el puerto del listener RFID para que coincida con el seleccionado,
+        manteniendo la misma configuración de conexión (baudrate, timeout).
+        """
+        port = self.cmb_port.itemData(index)
+        if not port:
+            return
+        
+        # Actualizar puerto del listener (internamente detiene y reinicia si corresponde)
+        self.rfid_listener.set_port(port)
+        self._log(f"Puerto serial cambiado a {port}")
     
     @Slot(bool)
     def _on_connection_status(self, connected: bool):
@@ -435,10 +468,11 @@ class RFIDView(QWidget):
             from PySide6.QtCore import QTimer
             QTimer.singleShot(2000, self._reset_open_button)
         else:
+            detail = self.rfid_listener.last_error or "Sin detalle adicional."
             QMessageBox.warning(
                 self,
                 "Error",
-                "No se pudo enviar el comando al Arduino.\nVerifique la conexión.",
+                f"No se pudo enviar el comando al Arduino.\n\nDetalle: {detail}",
                 QMessageBox.Ok
             )
     
